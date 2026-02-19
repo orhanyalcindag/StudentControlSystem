@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db } from './firebase'; // db'yi ekledik
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore'; // Veri çekme komutları eklendi
+import { collection, query, where, getDocs } from 'firebase/firestore';
+
+// Sayfalarımız
 import Login from './Login';
 import AddClass from './AddClass';
 import GradingPanel from './GradingPanel';
 import ReportPanel from './ReportPanel';
 import AdminPanel from './AdminPanel';
 
-// BURAYA KENDİ E-POSTA ADRESİNİ YAZ (Tamamen küçük harflerle)
-const ADMIN_EMAIL = "orhanyalcindag@gmail.com"; 
+const ADMIN_EMAIL = "orhanyalcindag@gmail.com"; //
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // Yeni eklenen durumlar (State)
   const [isAdmin, setIsAdmin] = useState(false);
   const [teacherProfile, setTeacherProfile] = useState(null);
-  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -26,90 +25,91 @@ function App() {
         setUser(currentUser);
         const adminCheck = currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
         setIsAdmin(adminCheck);
-
-        if (adminCheck) {
-          setIsAuthorized(true); // Admin her şeye yetkilidir
-          setLoading(false);
-        } else {
-          // Giriş yapan kişi admin değilse, 'teachers' tablosunda yetkisi var mı diye bakıyoruz
+        if (!adminCheck) {
           const q = query(collection(db, "teachers"), where("email", "==", currentUser.email.toLowerCase()));
           const snapshot = await getDocs(q);
-          
-          if (!snapshot.empty) {
-            setTeacherProfile(snapshot.docs[0].data()); // Öğretmenin ders ve sınıf listesini alıyoruz
-            setIsAuthorized(true);
-          } else {
-            setIsAuthorized(false); // Sisteme kayıtlı ama Admin ona henüz yetki vermemiş
-          }
-          setLoading(false);
+          if (!snapshot.empty) setTeacherProfile(snapshot.docs[0].data());
         }
       } else {
         setUser(null);
-        setIsAuthorized(false);
-        setLoading(false);
       }
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  if (loading) return <div style={{textAlign:'center', marginTop:'50px'}}>Sistem Hazırlanıyor...</div>;
+  if (!user) return <Login />;
+
+  const handleLogout = () => signOut(auth);
+
+  // Menü Tasarımı
+  const menuStyle = {
+    padding: '15px 20px',
+    color: 'white',
+    textDecoration: 'none',
+    display: 'block',
+    fontSize: '16px',
+    borderRadius: '8px',
+    marginBottom: '10px',
+    transition: 'background 0.3s'
   };
 
-  if (loading) return <div style={{ textAlign: 'center', marginTop: '50px', fontSize: '18px', fontWeight: 'bold', color: '#4b5563' }}>Sistem Yükleniyor...</div>;
-
-  if (!user) {
-    return <Login />;
-  }
-
-  // Kullanıcı giriş yapmış ama Admin ona panelden yetki/ders atamamışsa:
-  if (!isAuthorized) {
-    return (
-      <div style={{ textAlign: 'center', marginTop: '100px', fontFamily: 'sans-serif' }}>
-        <h2 style={{ color: '#dc2626' }}>Yetkisiz Giriş</h2>
-        <p>Hesabınız başarıyla oluşturulmuş ancak henüz sınıflarınız ve dersleriniz tanımlanmamış.</p>
-        <p>Lütfen okul yöneticisi ile iletişime geçin.</p>
-        <button onClick={handleLogout} style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#4b5563', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Çıkış Yap</button>
-      </div>
-    );
-  }
-
-  // Yetkili Kullanıcı (Admin veya Öğretmen) Ekranı
   return (
-    <div style={{ backgroundColor: '#f3f4f6', minHeight: '100vh', width: '100%' }}>
-      <div style={{ maxWidth: '1300px', margin: '0 auto', padding: '20px' }}>
+    <Router>
+      <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f1f5f9' }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', backgroundColor: '#1e293b', color: 'white', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '24px', letterSpacing: '0.5px' }}>Öğrenci Kontrol Sistemi</h1>
-            <span style={{ fontSize: '14px', color: '#94a3b8' }}>
-              Hoş geldin, <strong style={{ color: '#e2e8f0' }}>{user.email}</strong> {isAdmin ? "(Yönetici)" : `(${teacherProfile?.name})`}
-            </span>
-          </div>
-          <button onClick={handleLogout} style={{ padding: '10px 20px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>🚪 Çıkış Yap</button>
-        </div>
-        
-        {isAdmin && (
-          <div style={{ marginBottom: '25px' }}>
-            <AdminPanel />
-          </div>
-        )}
+        {/* 📟 SOL YAN MENÜ (SIDEBAR) */}
+        <div style={{ width: '280px', backgroundColor: '#1e293b', color: 'white', padding: '20px', position: 'fixed', height: '100vh' }}>
+          <h2 style={{ fontSize: '20px', borderBottom: '1px solid #334155', paddingBottom: '20px', marginBottom: '20px' }}>🎯 Öğrenci Kontrol</h2>
+          
+          <nav>
+            <Link to="/" style={menuStyle} onMouseOver={(e) => e.target.style.backgroundColor='#334155'} onMouseOut={(e) => e.target.style.backgroundColor='transparent'}>🏠 Ana Sayfa</Link>
+            
+            {isAdmin && (
+              <Link to="/admin" style={menuStyle} onMouseOver={(e) => e.target.style.backgroundColor='#334155'} onMouseOut={(e) => e.target.style.backgroundColor='transparent'}>👑 Yönetici Paneli</Link>
+            )}
+            
+            <Link to="/sinif-ekle" style={menuStyle} onMouseOver={(e) => e.target.style.backgroundColor='#334155'} onMouseOut={(e) => e.target.style.backgroundColor='transparent'}>📂 Sınıf/Excel Yükle</Link>
+            <Link to="/puanlama" style={menuStyle} onMouseOver={(e) => e.target.style.backgroundColor='#334155'} onMouseOut={(e) => e.target.style.backgroundColor='transparent'}>✍️ Not Girişi</Link>
+            <Link to="/raporlar" style={menuStyle} onMouseOver={(e) => e.target.style.backgroundColor='#334155'} onMouseOut={(e) => e.target.style.backgroundColor='transparent'}>📊 Sınıf Raporları</Link>
+          </nav>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '25px', alignItems: 'start', marginBottom: '25px' }}>
-          <div style={{ width: '100%' }}>
-            {/* Alt panellere yetki durumunu ve öğretmen profilini gönderiyoruz */}
-            <AddClass isAdmin={isAdmin} teacherProfile={teacherProfile} />
-          </div>
-          <div style={{ width: '100%' }}>
-            <GradingPanel isAdmin={isAdmin} teacherProfile={teacherProfile} />
-          </div>
+          <button onClick={handleLogout} style={{ position: 'absolute', bottom: '20px', left: '20px', right: '20px', padding: '10px', backgroundColor: '#ef4444', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🚪 Güvenli Çıkış</button>
         </div>
 
-        <div style={{ width: '100%', marginBottom: '20px' }}>
-          <ReportPanel isAdmin={isAdmin} teacherProfile={teacherProfile} />
+        {/* 🖼️ SAĞ İÇERİK ALANI */}
+        <div style={{ marginLeft: '280px', flex: 1, padding: '40px' }}>
+          <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
+            <h1 style={{ fontSize: '24px', color: '#1e293b' }}>Hoş geldin, {teacherProfile?.name || "Yönetici"}</h1>
+            <div style={{ backgroundColor: 'white', padding: '10px 20px', borderRadius: '30px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+              📧 {user.email}
+            </div>
+          </header>
+
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+            <Routes>
+              <Route path="/" element={<WelcomeMessage isAdmin={isAdmin} />} />
+              <Route path="/admin" element={isAdmin ? <AdminPanel /> : <Navigate to="/" />} />
+              <Route path="/sinif-ekle" element={<AddClass isAdmin={isAdmin} teacherProfile={teacherProfile} />} />
+              <Route path="/puanlama" element={<GradingPanel isAdmin={isAdmin} teacherProfile={teacherProfile} />} />
+              <Route path="/raporlar" element={<ReportPanel isAdmin={isAdmin} teacherProfile={teacherProfile} />} />
+            </Routes>
+          </div>
         </div>
 
       </div>
+    </Router>
+  );
+}
+
+// Basit bir karşılama bileşeni
+function WelcomeMessage({ isAdmin }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '50px' }}>
+      <h2>Öğrenci Kontrol Sistemine Hoş Geldiniz!</h2>
+      <p style={{ color: '#64748b', marginTop: '10px' }}>Soldaki menüyü kullanarak işlemlerinizi gerçekleştirebilirsiniz.</p>
+      {isAdmin && <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fef3c7', borderRadius: '8px', color: '#92400e' }}>⚠️ Yönetici modundasınız. Tüm yetkiler açık.</div>}
     </div>
   );
 }
